@@ -80,21 +80,18 @@ export default function WeakHandsInterface() {
   const { data: latestPrice } = useReadContract({
     ...contractConfig,
     functionName: 'getLatestPrice',
-    watch: true,
   });
 
   const { data: lockInfo } = useReadContract({
     ...contractConfig,
     functionName: 'getLockInfo',
     args: address ? [address] : undefined,
-    watch: true,
   });
 
   const { data: canWithdrawData } = useReadContract({
     ...contractConfig,
     functionName: 'canWithdraw',
     args: address ? [] : undefined,
-    watch: true,
   });
 
   // Contract write hooks
@@ -130,8 +127,8 @@ export default function WeakHandsInterface() {
         functionName: 'deposit',
         value: parseEther(depositAmount),
       });
-    } catch (err) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -157,8 +154,8 @@ export default function WeakHandsInterface() {
           BigInt(Math.floor(parseFloat(targetPrice) * 1e8)),
         ],
       });
-    } catch (err) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -178,8 +175,8 @@ export default function WeakHandsInterface() {
         ...contractConfig,
         functionName: 'withdraw',
       });
-    } catch (err) {
-      setError(err.message);
+    } catch (err: Error | unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
