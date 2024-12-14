@@ -3,12 +3,17 @@ import { useAccount, useReadContract, useWriteContract, useBalance, useWaitForTr
 import { Card, CardContent, CardHeader, CardTitle } from '~~/components/ui/card';
 import { Button } from '~~/components/ui/button';
 import { Input } from '~~/components/ui/input';
-import { parseEther, formatEther } from 'viem';
+import { parseEther, formatEther, type Address } from 'viem';
 import { XCircle, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
 
 import importContractABI from '~~/app/artifacts/contracts/WeakHands.sol/WeakHands.json';
 
-const contractConfig = {
+interface ContractConfig {
+  address: Address;
+  abi: typeof importContractABI.abi;
+}
+
+const contractConfig: ContractConfig = {
   address: '0xa2acaf9aae7ae087049b65ff5215a43cea132f3b',
   abi: importContractABI.abi,
 } as const;
@@ -22,6 +27,10 @@ type TransactionStatus = {
 
 // Define the type for lock info return data
 type LockInfo = [bigint, bigint, bigint, boolean, boolean];
+
+interface WriteContractResult {
+  hash: string;
+}
 
 export default function WeakHandsInterface() {
   const { address, isConnected } = useAccount();
