@@ -4,63 +4,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '~~/components/ui/card'
 import { Button } from '~~/components/ui/button';
 import { Input } from '~~/components/ui/input';
 import { parseEther, formatEther } from 'viem';
+import { XCircle, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+
+import importContractABI from '~~/app/artifacts/contracts/WeakHands.sol/WeakHands.json';
 
 const contractConfig = {
   address: '0xa2acaf9aae7ae087049b65ff5215a43cea132f3b',
-  abi: [
-    {
-      type: 'function',
-      name: 'deposit',
-      stateMutability: 'payable',
-      inputs: [],
-      outputs: [],
-    },
-    {
-      type: 'function',
-      name: 'setParameters',
-      stateMutability: 'nonpayable',
-      inputs: [
-        { type: 'uint256', name: '_targetDate' },
-        { type: 'uint256', name: '_targetPriceUSD' }
-      ],
-      outputs: [],
-    },
-    {
-      type: 'function',
-      name: 'getLockInfo',
-      stateMutability: 'view',
-      inputs: [{ type: 'address', name: '_user' }],
-      outputs: [
-        { type: 'uint256', name: 'amount' },
-        { type: 'uint256', name: 'targetDate' },
-        { type: 'uint256', name: 'targetPrice' },
-        { type: 'bool', name: 'parametersSet' },
-        { type: 'bool', name: 'withdrawn' }
-      ],
-    },
-    {
-      type: 'function',
-      name: 'getLatestPrice',
-      stateMutability: 'view',
-      inputs: [],
-      outputs: [{ type: 'uint256' }],
-    },
-    {
-      type: 'function',
-      name: 'canWithdraw',
-      stateMutability: 'view',
-      inputs: [],
-      outputs: [{ type: 'bool' }],
-    },
-    {
-      type: 'function',
-      name: 'withdraw',
-      stateMutability: 'nonpayable',
-      inputs: [],
-      outputs: [],
-    }
-  ]
+  abi: importContractABI.abi,
 } as const;
+
+type TransactionStatus = {
+  hash?: string;
+  status: 'idle' | 'pending' | 'success' | 'error';
+  error?: string;
+  action: string;
+};
+
+// Define the type for lock info return data
+type LockInfo = [bigint, bigint, bigint, boolean, boolean];
 
 export default function WeakHandsInterface() {
   const { address, isConnected } = useAccount();
@@ -69,14 +30,15 @@ export default function WeakHandsInterface() {
   const [targetPrice, setTargetPrice] = useState('');
   const [targetDate, setTargetDate] = useState('');
   const [currentPrice, setCurrentPrice] = useState(0);
-  const [error, setError] = useState('');
+  const [txStatus, setTxStatus] = useState<TransactionStatus>({
+    status: 'idle',
+    action: ''
+  });
   
-  // Get user's ETH balance
   const { data: balance } = useBalance({
     address: address,
   });
 
-  // Contract read hooks
   const { data: latestPrice } = useReadContract({
     ...contractConfig,
     functionName: 'getLatestPrice',
@@ -85,33 +47,50 @@ export default function WeakHandsInterface() {
   const { data: lockInfo } = useReadContract({
     ...contractConfig,
     functionName: 'getLockInfo',
-    args: address ? [address] : undefined,
-  });
+    args: [address],
+  }) as { data: LockInfo | undefined };
 
   const { data: canWithdrawData } = useReadContract({
     ...contractConfig,
     functionName: 'canWithdraw',
-    args: address ? [] : undefined,
+    args: [address],
   });
 
-  // Contract write hooks
   const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract();
 
-  // Transaction receipt
-  const { isLoading: isTxLoading } = useWaitForTransactionReceipt({ 
+  const { isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ 
     hash: txHash 
   });
 
   useEffect(() => {
+    if (isPending || isTxLoading) {
+      setTxStatus(prev => ({
+        ...prev,
+        status: 'pending',
+        hash: txHash
+      }));
+    } else if (isTxSuccess) {
+      setTxStatus(prev => ({
+        ...prev,
+        status: 'success',
+        hash: txHash
+      }));
+    }
+  }, [isPending, isTxLoading, isTxSuccess, txHash]);
+
+  useEffect(() => {
     if (writeError) {
-      setError(writeError.message);
+      setTxStatus(prev => ({
+        ...prev,
+        status: 'error',
+        error: writeError.message
+      }));
     }
   }, [writeError]);
 
-  // Handle deposits
   const handleDeposit = async () => {
     try {
-      setError('');
+      setTxStatus({ status: 'idle', action: 'deposit' });
       if (!isConnected) {
         const connector = connectors[0];
         if (connector) {
@@ -127,15 +106,18 @@ export default function WeakHandsInterface() {
         functionName: 'deposit',
         value: parseEther(depositAmount),
       });
-    } catch (err: Error | unknown) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (err: unknown) {
+      setTxStatus({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'An unknown error occurred',
+        action: 'deposit'
+      });
     }
   };
 
-  // Handle setting parameters
   const handleSetParameters = async () => {
     try {
-      setError('');
+      setTxStatus({ status: 'idle', action: 'lock' });
       if (!isConnected) {
         const connector = connectors[0];
         if (connector) {
@@ -154,15 +136,18 @@ export default function WeakHandsInterface() {
           BigInt(Math.floor(parseFloat(targetPrice) * 1e8)),
         ],
       });
-    } catch (err: Error | unknown) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (err: unknown) {
+      setTxStatus({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'An unknown error occurred',
+        action: 'lock'
+      });
     }
   };
 
-  // Handle withdrawals
   const handleWithdraw = async () => {
     try {
-      setError('');
+      setTxStatus({ status: 'idle', action: 'withdraw' });
       if (!isConnected) {
         const connector = connectors[0];
         if (connector) {
@@ -175,8 +160,12 @@ export default function WeakHandsInterface() {
         ...contractConfig,
         functionName: 'withdraw',
       });
-    } catch (err: Error | unknown) {
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (err: unknown) {
+      setTxStatus({
+        status: 'error',
+        error: err instanceof Error ? err.message : 'An unknown error occurred',
+        action: 'withdraw'
+      });
     }
   };
 
@@ -199,22 +188,64 @@ export default function WeakHandsInterface() {
     return Math.max(0, Math.ceil((targetTimestamp - now) / (1000 * 60 * 60 * 24)));
   };
 
+  const TransactionAlert = () => {
+    if (txStatus.status === 'idle') return null;
+
+    const baseStyle = "px-4 py-3 rounded relative flex items-center gap-2 mb-4";
+    const getStyle = () => {
+      switch (txStatus.status) {
+        case 'pending':
+          return `${baseStyle} bg-yellow-100 border border-yellow-400 text-yellow-700`;
+        case 'success':
+          return `${baseStyle} bg-green-100 border border-green-400 text-green-700`;
+        case 'error':
+          return `${baseStyle} bg-red-100 border border-red-400 text-red-700`;
+        default:
+          return baseStyle;
+      }
+    };
+
+    return (
+      <div className={getStyle()}>
+        {txStatus.status === 'pending' && (
+          <>
+            <Loader2 className="animate-spin" />
+            <span>Transaction pending...</span>
+          </>
+        )}
+        {txStatus.status === 'success' && (
+          <>
+            <CheckCircle2 className="text-green-500" />
+            <span>Transaction successful!</span>
+            <a 
+              href={`https://sepolia.etherscan.io/tx/${txStatus.hash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 ml-2 underline"
+            >
+              View on Etherscan <ExternalLink size={16} />
+            </a>
+          </>
+        )}
+        {txStatus.status === 'error' && (
+          <>
+            <XCircle className="text-red-500" />
+            <span>{txStatus.error}</span>
+          </>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
-      {/* Connected Address */}
       <div className="text-lg font-medium">
         {isConnected ? `Connected: ${address}` : 'Not Connected'}
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
-          {error}
-        </div>
-      )}
+      <TransactionAlert />
 
-      {/* Main Controls */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Deposit Box */}
         <Card>
           <CardHeader>
             <CardTitle>Deposit ETH</CardTitle>
@@ -238,7 +269,6 @@ export default function WeakHandsInterface() {
           </CardContent>
         </Card>
 
-        {/* Lock Parameters Box */}
         <Card>
           <CardHeader>
             <CardTitle>Set Lock Parameters</CardTitle>
@@ -267,8 +297,7 @@ export default function WeakHandsInterface() {
         </Card>
       </div>
 
-      {/* Lock Information */}
-      {lockInfo && !lockInfo[4] && (
+      {address && lockInfo && !lockInfo[4] && (
         <Card>
           <CardHeader>
             <CardTitle>Your Lock</CardTitle>
@@ -311,4 +340,4 @@ export default function WeakHandsInterface() {
       )}
     </div>
   );
-};
+}
