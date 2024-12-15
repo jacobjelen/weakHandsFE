@@ -6,123 +6,113 @@ import { type Address, type Abi } from 'viem';
 
 // Define types for props and state
 interface ContractConfig {
-  address: Address;
-  abi: Abi;
+    address: Address;
+    abi: Abi;
 }
 
 interface ContractStatsProps {
-  contractConfig: ContractConfig;
+    contractConfig: ContractConfig;
 }
 
 interface StatsData {
-  totalLocked: bigint;
-  activeWallets: number;
+    totalLocked: bigint;
+    activeWallets: number;
 }
 
 interface DepositEvent {
-  args: {
-    user: Address;
-    amount: bigint;
-    newTotal: bigint;
-  };
+    args: {
+        user: Address;
+        amount: bigint;
+        newTotal: bigint;
+    };
 }
 
 type LockInfo = [
-  amount: bigint,
-  targetDate: bigint,
-  targetPrice: bigint,
-  parametersSet: boolean,
-  withdrawn: boolean
+    amount: bigint,
+    targetDate: bigint,
+    targetPrice: bigint,
+    parametersSet: boolean,
+    withdrawn: boolean
 ];
 
 const ContractStats = ({ contractConfig }: ContractStatsProps) => {
-  const [statsData, setStatsData] = useState<StatsData>({
-    totalLocked: 0n,
-    activeWallets: 0
-  });
-  const publicClient = usePublicClient();
+    const [statsData, setStatsData] = useState<StatsData>({
+        totalLocked: 0n,
+        activeWallets: 0
+    });
+    const publicClient = usePublicClient();
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      if (!publicClient) {
-        console.warn("Public client not available");
-        return;
-      }
-      
-      try {
-        // Get deposit events
-        const depositEvents = await publicClient.getLogs({
-          address: contractConfig.address,
-          event: {
-            type: 'event',
-            name: 'Deposit',
-            inputs: [
-              { type: 'address', name: 'user', indexed: true },
-              { type: 'uint256', name: 'amount' },
-              { type: 'uint256', name: 'newTotal' }
-            ]
-          },
-          fromBlock: 0n,
-          toBlock: 'latest'
-        }) as unknown as DepositEvent[];
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (!publicClient) {
+                console.warn("Public client not available");
+                return;
+            }
 
-        // Get unique addresses
-        const uniqueAddresses = [...new Set(depositEvents.map(event => event.args.user))];
+            try {
+                // Get deposit events
+                const depositEvents = await publicClient.getLogs({
+                    address: contractConfig.address,
+                    event: {
+                        type: 'event',
+                        name: 'Deposit',
+                        inputs: [
+                            { type: 'address', name: 'user', indexed: true },
+                            { type: 'uint256', name: 'amount' },
+                            { type: 'uint256', name: 'newTotal' }
+                        ]
+                    },
+                    fromBlock: 0n,
+                    toBlock: 'latest'
+                }) as unknown as DepositEvent[];
 
-        // Get lock info for each address and calculate totals
-        let totalLocked = 0n;
-        let activeWallets = 0;
+                // Get unique addresses
+                const uniqueAddresses = [...new Set(depositEvents.map(event => event.args.user))];
 
-        for (const address of uniqueAddresses) {
-          const lockInfo = await publicClient.readContract({
-            ...contractConfig,
-            functionName: 'getLockInfo',
-            args: [address],
-          }) as LockInfo;
+                // Get lock info for each address and calculate totals
+                let totalLocked = 0n;
+                let activeWallets = 0;
 
-          if (lockInfo && lockInfo[0] > 0n && !lockInfo[4]) {
-            totalLocked += lockInfo[0];
-            activeWallets++;
-          }
-        }
+                for (const address of uniqueAddresses) {
+                    const lockInfo = await publicClient.readContract({
+                        ...contractConfig,
+                        functionName: 'getLockInfo',
+                        args: [address],
+                    }) as LockInfo;
 
-        setStatsData({
-          totalLocked,
-          activeWallets
-        });
+                    if (lockInfo && lockInfo[0] > 0n && !lockInfo[4]) {
+                        totalLocked += lockInfo[0];
+                        activeWallets++;
+                    }
+                }
 
-      } catch (error) {
-        console.error('Error fetching stats:', error instanceof Error ? error.message : 'Unknown error');
-      }
-    };
+                setStatsData({
+                    totalLocked,
+                    activeWallets
+                });
 
-    fetchStats();
-    
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchStats, 30000);
-    return () => clearInterval(interval);
-  }, [publicClient, contractConfig]);
+            } catch (error) {
+                console.error('Error fetching stats:', error instanceof Error ? error.message : 'Unknown error');
+            }
+        };
 
-  return (
-    <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50">
-      <CardContent className="pt-6">
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div className="p-4">
-            <div className="text-sm text-gray-600 mb-1">Active Locks</div>
-            <div className="text-3xl font-bold text-indigo-600">
-              {statsData.activeWallets}
-            </div>
-          </div>
-          <div className="p-4">
-            <div className="text-sm text-gray-600 mb-1">Total ETH Locked</div>
-            <div className="text-3xl font-bold text-indigo-600">
-              {formatEther(statsData.totalLocked).slice(0, 8)} ETH
-            </div>
-          </div>
+        fetchStats();
+
+        // Refresh every 30 seconds
+        const interval = setInterval(fetchStats, 30000);
+        return () => clearInterval(interval);
+    }, [publicClient, contractConfig]);
+
+    return (
+        <div className='flex flex-row items-end gap-2 text-m text-grey-300 mb-1'>
+
+            Currently holding
+            <span className='font-bold text-white'>{formatEther(statsData.totalLocked).slice(0, 8)} ETH</span>
+            for
+            <span className='font-bold text-white'>{statsData.activeWallets} </span>
+            users!
         </div>
-      </CardContent>
-    </Card>
-  );
+    );
 };
 
 export default ContractStats;

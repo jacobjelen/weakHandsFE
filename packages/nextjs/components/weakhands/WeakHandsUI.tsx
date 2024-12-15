@@ -4,21 +4,9 @@ import { type Abi } from 'viem';
 import { Card, CardContent, CardHeader, CardTitle } from '~~/components/ui/card';
 import { Button } from '~~/components/ui/button';
 import { Input } from '~~/components/ui/input';
-import ContractStats from './ContractStats';
+import contractConfig from './ContractConfig';
 import { parseEther, formatEther, type Address } from 'viem';
 import { XCircle, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
-
-import importContractABI from '~~/app/artifacts/contracts/WeakHands.sol/WeakHands.json';
-
-export interface ContractConfig {
-  address: `0x${string}`;
-  abi: Abi;
-}
-
-const contractConfig: ContractConfig = {
-  address: '0xa2acaf9aae7ae087049b65ff5215a43cea132f3b' as const,
-  abi: importContractABI.abi as Abi,
-} as const;
 
 type TransactionStatus = {
   hash?: string;
@@ -250,7 +238,6 @@ export default function WeakHandsInterface() {
 
   return (
     <div className="max-w-4xl mx-auto p-4 space-y-4">
-        <ContractStats contractConfig={contractConfig} />
 
       <div className="text-lg font-medium">
         {isConnected ? `Connected: ${address}` : 'Not Connected'}
