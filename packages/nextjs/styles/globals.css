@@ -30,7 +30,3 @@ p {
 .btn.btn-ghost {
   @apply shadow-none;
 }
-
-.card {
-  background-color: var(--background);
-}
