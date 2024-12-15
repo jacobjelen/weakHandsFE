@@ -107,9 +107,9 @@ const ContractStats = ({ contractConfig }: ContractStatsProps) => {
         <div className='flex flex-row items-end gap-2 text-m text-grey-300 mb-1'>
 
             Currently holding
-            <span className='font-bold text-white'>{formatEther(statsData.totalLocked).slice(0, 8)} ETH</span>
+            <span className='font-bold'>{formatEther(statsData.totalLocked).slice(0, 8)} ETH</span>
             for
-            <span className='font-bold text-white'>{statsData.activeWallets} </span>
+            <span className='font-bold'>{statsData.activeWallets} </span>
             users!
         </div>
     );
