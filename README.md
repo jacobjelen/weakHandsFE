@@ -1,6 +1,10 @@
 # Weak hands dApp
 
-Build using [Scaffold-ETH-2](https://scaffoldeth.io/https:/), as a final project of the [EVM Bootcamp Q4 2024](https://www.encode.club/evm-bootcamphttps:/). 
+A dApp that lets you lock your ETH until it reaches a preset USD value or date. 
+
+Final project for the [EVM Bootcamp Q4 2024](https://www.encode.club/evm-bootcamphttps:/) by Group 5.
+
+Build using [Scaffold-ETH-2](https://scaffoldeth.io/https:/)
 
 
 Smart contract on Sepolia: [https://sepolia.etherscan.io/address/0xa2acaf9aae7ae087049b65ff5215a43cea132f3b](https://sepolia.etherscan.io/address/0xa2acaf9aae7ae087049b65ff5215a43cea132f3bhttps:/)

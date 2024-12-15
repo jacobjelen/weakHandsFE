@@ -269,7 +269,7 @@ export default function WeakHandsInterface() {
           </CardContent>
         </Card>
 
-        <Card className="bg-background">
+        <Card className="bg-red-50">
           <CardHeader>
             <CardTitle>Set Lock Parameters</CardTitle>
           </CardHeader>
