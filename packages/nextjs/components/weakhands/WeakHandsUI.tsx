@@ -15,6 +15,13 @@ type TransactionStatus = {
   action: string;
 };
 
+type TimeRemaining = {
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+};
+
 // Define the type for lock info return data
 type LockInfo = [bigint, bigint, bigint, boolean, boolean];
 
@@ -33,7 +40,14 @@ export default function WeakHandsInterface() {
     status: 'idle',
     action: ''
   });
-  
+  const [targetTime, setTargetTime] = useState('00:00');
+  const [timeRemaining, setTimeRemaining] = useState<TimeRemaining>({
+    days: 0,
+    hours: 0,
+    minutes: 0,
+    seconds: 0
+  });
+
   const { data: balance } = useBalance({
     address: address,
   });
@@ -57,8 +71,8 @@ export default function WeakHandsInterface() {
 
   const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract();
 
-  const { isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({ 
-    hash: txHash 
+  const { isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
+    hash: txHash
   });
 
   useEffect(() => {
@@ -97,7 +111,7 @@ export default function WeakHandsInterface() {
           return;
         }
       }
-      
+
       if (!depositAmount) return;
 
       await writeContract({
@@ -125,13 +139,18 @@ export default function WeakHandsInterface() {
         }
       }
 
-      if (!targetPrice || !targetDate) return;
+      if (!targetPrice || !targetDate || !targetTime) return;
+
+      // Combine date and time
+      const [hours, minutes] = targetTime.split(':').map(Number);
+      const targetDateTime = new Date(targetDate);
+      targetDateTime.setHours(hours, minutes, 0, 0);
 
       await writeContract({
         ...contractConfig,
         functionName: 'setParameters',
         args: [
-          BigInt(new Date(targetDate).getTime() / 1000),
+          BigInt(Math.floor(targetDateTime.getTime() / 1000)),
           BigInt(Math.floor(parseFloat(targetPrice) * 1e8)),
         ],
       });
@@ -143,6 +162,34 @@ export default function WeakHandsInterface() {
       });
     }
   };
+
+  const calculateTimeRemaining = (targetTimestamp: number): TimeRemaining => {
+    const now = Date.now();
+    const diff = Math.max(0, targetTimestamp - now);
+
+    return {
+      days: Math.floor(diff / (1000 * 60 * 60 * 24)),
+      hours: Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
+      minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+      seconds: Math.floor((diff % (1000 * 60)) / 1000)
+    };
+  };
+
+  // Update countdown every second
+  useEffect(() => {
+    if (!lockInfo || lockInfo[4]) return;
+
+    const targetTimestamp = Number(lockInfo[1]) * 1000;
+
+    const updateCountdown = () => {
+      setTimeRemaining(calculateTimeRemaining(targetTimestamp));
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [lockInfo]);
 
   const handleWithdraw = async () => {
     try {
@@ -216,7 +263,7 @@ export default function WeakHandsInterface() {
           <>
             <CheckCircle2 className="text-green-500" />
             <span>Transaction successful!</span>
-            <a 
+            <a
               href={`https://sepolia.etherscan.io/tx/${txStatus.hash}`}
               target="_blank"
               rel="noopener noreferrer"
@@ -258,13 +305,13 @@ export default function WeakHandsInterface() {
               value={depositAmount}
               onChange={(e) => setDepositAmount(e.target.value)}
             />
-            <Button 
+            <Button
               className="w-full"
               onClick={handleDeposit}
               disabled={(!depositAmount && isConnected) || isPending || isTxLoading}
             >
-              {!isConnected ? 'Connect Wallet' : 
-               isPending || isTxLoading ? 'Confirming...' : 'Deposit'}
+              {!isConnected ? 'Connect Wallet' :
+                isPending || isTxLoading ? 'Confirming...' : 'Deposit'}
             </Button>
           </CardContent>
         </Card>
@@ -280,18 +327,25 @@ export default function WeakHandsInterface() {
               value={targetPrice}
               onChange={(e) => setTargetPrice(e.target.value)}
             />
-            <Input
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-            />
-            <Button 
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                type="date"
+                value={targetDate}
+                onChange={(e) => setTargetDate(e.target.value)}
+              />
+              <Input
+                type="time"
+                value={targetTime}
+                onChange={(e) => setTargetTime(e.target.value)}
+              />
+            </div>
+            <Button
               className="w-full"
               onClick={handleSetParameters}
-              disabled={(!targetPrice || !targetDate) && isConnected || isPending || isTxLoading}
+              disabled={(!targetPrice || !targetDate || !targetTime) && isConnected || isPending || isTxLoading}
             >
-              {!isConnected ? 'Connect Wallet' : 
-               isPending || isTxLoading ? 'Confirming...' : 'Lock'}
+              {!isConnected ? 'Connect Wallet' :
+                isPending || isTxLoading ? 'Confirming...' : 'Lock'}
             </Button>
           </CardContent>
         </Card>
@@ -311,7 +365,7 @@ export default function WeakHandsInterface() {
               <div>
                 <div className="font-medium">Target Price</div>
                 <div>
-                  ${Number(lockInfo[2]) / 1e8} 
+                  ${Number(lockInfo[2]) / 1e8}
                   <span className="text-sm ml-2">
                     ({calculatePriceDifference().toFixed(2)}% from current)
                   </span>
@@ -320,20 +374,35 @@ export default function WeakHandsInterface() {
               <div>
                 <div className="font-medium">Target Date</div>
                 <div>
-                  {new Date(Number(lockInfo[1]) * 1000).toLocaleDateString()}
-                  <span className="text-sm ml-2">
-                    ({calculateDaysRemaining()} days remaining)
-                  </span>
+                  {new Date(Number(lockInfo[1]) * 1000).toLocaleString()}
+                </div>
+                <div className="text-sm mt-2 grid grid-cols-4 gap-2">
+                  <div className="bg-primary/10 rounded p-2 text-center">
+                    <div className="font-bold">{timeRemaining.days}</div>
+                    <div className="text-xs">days</div>
+                  </div>
+                  <div className="bg-primary/10 rounded p-2 text-center">
+                    <div className="font-bold">{timeRemaining.hours}</div>
+                    <div className="text-xs">hours</div>
+                  </div>
+                  <div className="bg-primary/10 rounded p-2 text-center">
+                    <div className="font-bold">{timeRemaining.minutes}</div>
+                    <div className="text-xs">mins</div>
+                  </div>
+                  <div className="bg-primary/10 rounded p-2 text-center">
+                    <div className="font-bold">{timeRemaining.seconds}</div>
+                    <div className="text-xs">secs</div>
+                  </div>
                 </div>
               </div>
             </div>
-            <Button 
+            <Button
               className="w-full"
               onClick={handleWithdraw}
               disabled={!canWithdrawData || isPending || isTxLoading}
             >
-              {!isConnected ? 'Connect Wallet' : 
-               isPending || isTxLoading ? 'Confirming...' : 'Withdraw'}
+              {!isConnected ? 'Connect Wallet' :
+                isPending || isTxLoading ? 'Confirming...' : 'Withdraw'}
             </Button>
           </CardContent>
         </Card>
