@@ -246,7 +246,7 @@ export default function WeakHandsInterface() {
       <TransactionAlert />
 
       <div className="grid grid-cols-2 gap-4">
-        <Card>
+        <Card className="bg-background">
           <CardHeader>
             <CardTitle>Deposit ETH</CardTitle>
           </CardHeader>
@@ -269,7 +269,7 @@ export default function WeakHandsInterface() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="bg-background">
           <CardHeader>
             <CardTitle>Set Lock Parameters</CardTitle>
           </CardHeader>
@@ -298,7 +298,7 @@ export default function WeakHandsInterface() {
       </div>
 
       {address && lockInfo && !lockInfo[4] && (
-        <Card>
+        <Card className="bg-background">
           <CardHeader>
             <CardTitle>Your Lock</CardTitle>
           </CardHeader>
