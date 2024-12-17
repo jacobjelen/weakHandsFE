@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useAccount, useReadContract, useWriteContract, useBalance, useWaitForTransactionReceipt, useConnect } from 'wagmi';
+import { useAccount, useReadContract, useWriteContract, useBalance, useWaitForTransactionReceipt, useConnect, usePublicClient } from 'wagmi';
 import { type Abi } from 'viem';
 import { Card, CardContent, CardHeader, CardTitle } from '~~/components/ui/card';
 import { Button } from '~~/components/ui/button';
@@ -66,10 +66,59 @@ export default function WeakHandsInterface() {
   const { data: canWithdrawData } = useReadContract({
     ...contractConfig,
     functionName: 'canWithdraw',
-    args: [address],
+    account: address,
+    query: {
+      enabled: Boolean(address) && isConnected,
+    },
+    // watch: true,
   });
 
   const { writeContract, data: txHash, isPending, error: writeError } = useWriteContract();
+  const publicClient = usePublicClient();
+
+  useEffect(() => {
+    if (lockInfo && latestPrice) {
+      console.log('Debug info:');
+      console.log('Current time:', Math.floor(Date.now() / 1000));
+      console.log('Target time:', Number(lockInfo[1]));
+      console.log('Current price:', Number(latestPrice) / 1e8);
+      console.log('Target price:', Number(lockInfo[2]) / 1e8);
+      console.log('Can withdraw?:', canWithdrawData);
+    }
+  }, [lockInfo, latestPrice, canWithdrawData]);
+
+  useEffect(() => {
+    console.log('Debug extended:');
+    console.log('Address:', address);
+    console.log('Can withdraw data:', canWithdrawData);
+    console.log('Is connected:', isConnected);
+  }, [address, canWithdrawData, isConnected]);
+
+
+  useEffect(() => {
+    console.log('State Debug:');
+    console.log('Address:', address);
+    console.log('Is Connected:', isConnected);
+    console.log('Can Withdraw Data:', canWithdrawData);
+    console.log('Contract Config:', contractConfig);
+    
+    // Try reading the contract state directly
+    if (address && isConnected && publicClient) {
+      const checkWithdraw = async () => {
+        try {
+          const result = await publicClient.readContract({
+            ...contractConfig,
+            functionName: 'canWithdraw',
+            account: address,
+          });
+          console.log('Direct contract read result:', result);
+        } catch (err) {
+          console.error('Contract read error:', err);
+        }
+      };
+      checkWithdraw();
+    }
+  }, [address, isConnected, canWithdrawData, publicClient]);
 
   const { isLoading: isTxLoading, isSuccess: isTxSuccess } = useWaitForTransactionReceipt({
     hash: txHash
@@ -194,17 +243,18 @@ export default function WeakHandsInterface() {
   const handleWithdraw = async () => {
     try {
       setTxStatus({ status: 'idle', action: 'withdraw' });
-      if (!isConnected) {
+      if (!isConnected || !address) {
         const connector = connectors[0];
         if (connector) {
           await connect({ connector });
           return;
         }
       }
-
+  
       await writeContract({
         ...contractConfig,
         functionName: 'withdraw',
+        account: address, // Explicitly set the account
       });
     } catch (err: unknown) {
       setTxStatus({
@@ -399,10 +449,12 @@ export default function WeakHandsInterface() {
             <Button
               className="w-full"
               onClick={handleWithdraw}
-              disabled={!canWithdrawData || isPending || isTxLoading}
+              disabled={canWithdrawData === false || isPending || isTxLoading}
             >
               {!isConnected ? 'Connect Wallet' :
-                isPending || isTxLoading ? 'Confirming...' : 'Withdraw'}
+                isPending || isTxLoading ? 'Confirming...' :
+                  canWithdrawData === undefined ? 'Loading...' :
+                    canWithdrawData ? 'Withdraw' : 'Cannot withdraw yet'}
             </Button>
           </CardContent>
         </Card>
