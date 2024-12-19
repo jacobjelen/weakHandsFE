@@ -200,7 +200,7 @@ export default function WeakHandsInterface() {
         functionName: 'setParameters',
         args: [
           BigInt(Math.floor(targetDateTime.getTime() / 1000)),
-          BigInt(Math.floor(parseFloat(targetPrice) * 1e8)),
+          BigInt(Math.floor(parseFloat(targetPrice))),
         ],
       });
     } catch (err: unknown) {
